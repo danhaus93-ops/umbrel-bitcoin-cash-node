@@ -1,6 +1,6 @@
 {
   "bchn-dashboard": {"digest": "sha256:7c292722411525908ddb80ac56915db88213e245ac0e3e8a683a3d4ebcd2ae24", "tags": ["8bb17f3689d837dbd370ac0d35e4a158ea12b75a", "latest"]},
-  "solostrike-cash-dashboard": {"digest": "sha256:c8fc8b68f672fe43c601e1a2e4876a7db3729fcc8b37d42735523c7b0efba10c", "tags": ["95557f910fde618a75ba80f0f46fa76ffee57f6d", "latest"]},
+  "solostrike-cash-dashboard": {"digest": "sha256:741d7c82b8a72642fabb8b3a747ed446b1a699645f9b584aa8205a117ed2cfb1", "tags": ["ed25cbd95ecb68457efbeca49b4da456d1faa2fa", "latest"]},
   "asicseer-pool": {"digest": "sha256:a0bf1263de4e13fa5b0925c7c98333e6db18c3c642a8bbdc0384efd3dedbc208", "tags": ["56c54ace144de796cbd095f857ed9f051ea4d18b", "latest"]},
   "lonestrike-sv2-pool": {"digest": "sha256:2772216fdc33db965ad51251ee210df23f7ba43def00a11947634000b45678f5", "tags": ["e3e254ebf7d8fb12c74864f2495cff184d2340e7", "latest"]},
   "bchn-sv2-bridge": {"digest": "sha256:ee9dbaf78fe02d363a2ac3cd886b9cee22d1f55fc9071bd4131bf22b4928ea39", "tags": ["1b5a40b8d3101f2643aac2234f81a5850c2c9fa6", "latest"]},
