@@ -34,7 +34,7 @@ services:
       RPC_PORT: "8332"
       RPC_USER: bchn
       RPC_PASS: bchn_local_rpc_pw_2f9c
-      APP_VERSION: v1.4.72
+      APP_VERSION: v1.4.73
     volumes:
       - ${APP_DATA_DIR}/data/pool:/pool
       - ${APP_DATA_DIR}/data/sv2:/sv2
