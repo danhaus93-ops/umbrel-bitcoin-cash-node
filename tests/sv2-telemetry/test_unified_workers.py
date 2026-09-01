@@ -528,8 +528,8 @@ def test_round_watermark_survives_restart_replay():
           "const deltaRound = (ch.roundAcc || 0) - (ch.accountedRound || 0);" in SRC)
     check("allDiff keeps all-time semantics (separate delta)",
           "const deltaAll = ch.accepted - (ch.accounted || 0);" in SRC)
-    check("block detection stamps the watermark",
-          "sv2SetRoundStart(Math.floor(Date.now() / 1000));" in SRC)
+    check("block detection stamps the watermark (with the SV1 baseline)",
+          "sv2SetRoundStart(Math.floor(Date.now() / 1000), sv2State._sv1AccRaw ?? null);" in SRC)
     check("per-channel round counters zeroed at reset",
           "c.roundAcc = 0; c.accountedRound = 0;" in SRC)
 
@@ -788,6 +788,31 @@ console.log(JSON.stringify({ name: (sv2State.channels['1:35']||{}).name }));
     check("channel 1:35 named miner25 via the request_id join", d["name"] == "miner25")
 
 
+def test_cross_protocol_round_reset():
+    """Chris (2026-08-31): an SV2 block reset the SV2 round but asicseer's
+    SV1 round kept climbing (it only resets on its own solves). A persisted
+    SV1 baseline makes any local block zero the whole fleet's round."""
+    check("sv1 baseline persisted alongside round start",
+          "sv1Base: sv1RoundBase" in SRC)
+    check("SV1 round displayed relative to the baseline",
+          "out.roundShares = Math.max(0, out.accepted - sv1RoundBase);" in SRC)
+    check("asicseer self-reset re-zeroes the baseline",
+          "if (out.accepted < sv1RoundBase) sv2SetRoundStart(sv2RoundStartTs, 0);" in SRC)
+    check("local-block detection stamps the SV1 baseline",
+          "sv2SetRoundStart(Math.floor(Date.now() / 1000), sv2State._sv1AccRaw ?? null);" in SRC)
+
+
+def test_braiins_name_level_hashrate():
+    """Chris (2026-08-31): a Braiins rental fans one worker name across
+    hundreds of short-lived connections (downstream_id reached 578); the
+    aggregated row's rate swung 500T<->1P as cold and dying channel windows
+    entered and left the sum. The merged name's rate is now computed from
+    the raw share ring across all its channels: one window, one truth."""
+    check("name-level recompute over the raw share ring",
+          "nameOfCid[c2] === m.name" in SRC and "work * 4294967296 / 300" in SRC)
+    check("bounded to a 5-minute window", "nowMs2 - ts2 <= 300000" in SRC)
+
+
 if __name__ == "__main__":
     print("unified worker schema regression tests:")
     test_both_protocols_emit_one_schema()
@@ -820,6 +845,8 @@ if __name__ == "__main__":
     test_block_best_is_chain_authoritative()
     test_round_samples_enable_late_effort()
     test_identity_join_by_request_id()
+    test_cross_protocol_round_reset()
+    test_braiins_name_level_hashrate()
     if FAILURES:
         print(f"\n{len(FAILURES)} FAILURE(S): {FAILURES}")
         sys.exit(1)

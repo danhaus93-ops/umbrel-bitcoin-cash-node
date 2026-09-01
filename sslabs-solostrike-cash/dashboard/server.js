@@ -232,9 +232,18 @@ function sv2RoundNear(ts) {
   }
   return (best != null && dt < 600) ? best : null;
 }
-function sv2SetRoundStart(ts) {
+// Chris (2026-08-31): "work done on sv2 and sv1 for effort isn't added
+// together so doesn't reset the other when it hits" -- half right, and the
+// half that's right matters: the SV1 component came straight from
+// asicseer's own round counter, which only resets when asicseer itself
+// solves. An SV2 block reset our SV2 accumulators but left the SV1 round
+// climbing. A persisted SV1 baseline makes any LOCAL block zero the whole
+// fleet's round; asicseer self-resets (its own solve) re-zero the baseline.
+let sv1RoundBase = (() => { try { return Number(JSON.parse(fs.readFileSync(SV2_ROUND_FILE, 'utf8')).sv1Base) || 0; } catch (_) { return 0; } })();
+function sv2SetRoundStart(ts, sv1Acc) {
   sv2RoundStartTs = ts;
-  try { fs.writeFileSync(SV2_ROUND_FILE, JSON.stringify({ start: ts })); } catch (_) {}
+  if (sv1Acc != null) sv1RoundBase = sv1Acc;
+  try { fs.writeFileSync(SV2_ROUND_FILE, JSON.stringify({ start: ts, sv1Base: sv1RoundBase })); } catch (_) {}
 }
 function sv2SaveBest()   { try { fs.writeFileSync(SV2_BEST_FILE,   JSON.stringify(sv2BestP));  } catch (_) {} }
 function sv2ResetTs(name) { return Math.max(Number(sv2Resets[name]) || 0, Number(sv2Resets.__all__) || 0); }
@@ -1331,7 +1340,9 @@ app.get('/api/status', async (_req, res) => {
     // round's share total. Subtracting a stale acceptedAtLastBlock baseline pinned
     // effort at 0% after a solve until 'accepted' re-climbed past it. Mirror the
     // pool's own effort calc (accounted_diff_shares / network_diff) and use it directly.
-    out.roundShares = out.accepted;
+    sv2State._sv1AccRaw = out.accepted;
+    if (out.accepted < sv1RoundBase) sv2SetRoundStart(sv2RoundStartTs, 0);  // asicseer self-reset (SV1 solve)
+    out.roundShares = Math.max(0, out.accepted - sv1RoundBase);
     const hs = hashToHs(p.hashrate5m || p.hashrate1m);
     out.poolHs = hs;
     out.workerList = readWorkers();
@@ -1389,7 +1400,7 @@ app.get('/api/status', async (_req, res) => {
             (out.roundShares || 0) + Math.max(sv2State.roundWork, sv2State.roundDiff),
             sv2State.prevRoundTotal || 0);
           sv2State.roundWork = 0; sv2State.roundDiff = 0;
-          sv2SetRoundStart(Math.floor(Date.now() / 1000));
+          sv2SetRoundStart(Math.floor(Date.now() / 1000), sv2State._sv1AccRaw ?? null);
           for (const c of Object.values(sv2State.channels)) { c.roundAcc = 0; c.accountedRound = 0; }
           // Chris #2: a block is a FLEET event. asicseer clears SV1's best
           // itself when SV1 solves, but SV2's best survived, so the combined
@@ -1437,6 +1448,21 @@ app.get('/api/status', async (_req, res) => {
         m.idle = m.idle && w.idle;
         if (w.declared === 0) m.declared = 0;
       }
+    }
+    // Chris (2026-08-31, Braiins rental): hundreds of short-lived connections
+    // for one worker name made the aggregated row's rate swing (cold windows
+    // on fresh channels, warm tails on dead ones). Recompute each merged
+    // name's hashrate from the raw share ring across ALL its channels --
+    // one window, one truth, immune to connection churn.
+    const nameOfCid = {};
+    for (const [cid2, ch2] of Object.entries(sv2State.channels)) nameOfCid[cid2] = ch2.name;
+    const nowMs2 = Date.now();
+    for (const m of Object.values(merged)) {
+      let work = 0;
+      for (const [ts2, w2, c2] of sv2State.shares) {
+        if (nameOfCid[c2] === m.name && nowMs2 - ts2 <= 300000) work += w2;
+      }
+      if (work > 0) m._hs = work * 4294967296 / 300;
     }
     const aggregated = Object.values(merged).map((m) => {
       if (m.conns > 1) { const h = fmtHs(m._hs); m.hashrate = h.val + ' ' + h.unit; m.trend = [m._hs,m._hs,m._hs,m._hs,m._hs]; }
